@@ -1,4 +1,8 @@
 export const ru = {
   appTitle: 'Фотокарта мира',
-  mapPlaceholder: 'Здесь будет карта',
+  loading: 'Загружаем карту…',
+  loadError: 'Не удалось загрузить карту. Проверьте соединение и обновите страницу.',
+  kindCountry: 'Страна',
+  kindRegion: 'Регион России',
+  close: 'Закрыть',
 }

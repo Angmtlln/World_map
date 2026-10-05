@@ -1,0 +1,72 @@
+.world-map {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.world-map svg {
+  display: block;
+  cursor: grab;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.world-map svg:active {
+  cursor: grabbing;
+}
+
+.map-sphere {
+  fill: var(--ocean);
+}
+
+/* The stroke matches the fill: it closes the hairline gaps antialiasing leaves
+   between touching polygons. Real borders are drawn on top as a separate mesh. */
+.map-territories path {
+  --fill: var(--land);
+  fill: var(--fill);
+  stroke: var(--fill);
+  stroke-width: 0.5px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+}
+
+.map-country-borders,
+.map-region-borders {
+  fill: none;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.map-country-borders {
+  stroke: var(--border);
+  stroke-width: 0.75px;
+}
+
+.map-region-borders {
+  stroke: var(--region-border);
+  stroke-width: 0.4px;
+}
+
+.map-dot {
+  --fill: var(--dot);
+  fill: var(--fill);
+  /* A wide transparent stroke makes the dot easy to hit at any zoom. */
+  stroke: transparent;
+  stroke-width: 12px;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .map-territories path:hover,
+  .map-dot:hover {
+    --fill: var(--land-hover);
+  }
+}
+
+.map-territories path.is-selected,
+.map-dot.is-selected {
+  --fill: var(--selected);
+}

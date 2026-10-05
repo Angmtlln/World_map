@@ -1,8 +1,16 @@
 :root {
   --bg: #f5f5f4;
   --text: #1c1917;
+  --muted: #78716c;
+  --ocean: #fafaf9;
   --land: #c8c8c8;
+  --land-hover: #b4b4b4;
   --border: #ffffff;
+  --region-border: rgba(255, 255, 255, 0.6);
+  --dot: #a8a8a8;
+  --selected: #e8833a;
+  --panel: rgba(255, 255, 255, 0.92);
+  --panel-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 
   font-family:
     system-ui,
@@ -18,10 +26,18 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #1c1c1e;
+    --bg: #161618;
     --text: #e7e5e4;
+    --muted: #a8a29e;
+    --ocean: #1c1c1e;
     --land: #4a4a4c;
+    --land-hover: #5c5c5f;
     --border: #1c1c1e;
+    --region-border: rgba(28, 28, 30, 0.6);
+    --dot: #6b6b6e;
+    --selected: #e8833a;
+    --panel: rgba(40, 40, 42, 0.92);
+    --panel-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   }
 }
 
@@ -32,13 +48,23 @@ body,
   margin: 0;
 }
 
+body {
+  overscroll-behavior: none;
+}
+
 .app {
+  position: relative;
   height: 100%;
+  overflow: hidden;
+}
+
+.app-status {
+  position: absolute;
+  inset: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 16px;
-  box-sizing: border-box;
+  color: var(--muted);
   text-align: center;
 }

@@ -9,3 +9,8 @@ const messages: Messages = ru
 export function t(key: MessageKey): string {
   return messages[key]
 }
+
+// Territory names come with the map data, one field per language.
+export function territoryName(p: { name_ru: string; name_en: string }): string {
+  return p.name_ru
+}
