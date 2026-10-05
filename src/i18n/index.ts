@@ -6,8 +6,13 @@ export type Messages = Record<MessageKey, string>
 
 const messages: Messages = ru
 
-export function t(key: MessageKey): string {
-  return messages[key]
+// Replaces {name} placeholders with values from `params`.
+export function t(key: MessageKey, params?: Record<string, string | number>): string {
+  const message = messages[key]
+  if (!params) return message
+  return message.replace(/\{(\w+)\}/g, (match, name: string) =>
+    name in params ? String(params[name]) : match,
+  )
 }
 
 // Territory names come with the map data, one field per language.

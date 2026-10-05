@@ -31,6 +31,16 @@
   cursor: pointer;
 }
 
+.map-photos path {
+  fill: var(--photo);
+  /* Same trick as the grey fill: closes hairline gaps between the photo's polygons. */
+  stroke: var(--photo);
+  stroke-width: 0.5px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+}
+
 .map-country-borders,
 .map-region-borders {
   fill: none;
@@ -66,7 +76,36 @@
   }
 }
 
-.map-territories path.is-selected,
+.map-selection {
+  fill: none;
+  stroke: var(--selected);
+  stroke-width: 2px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+/* Without a photo the outline alone is hard to spot on the whole-world view. */
+.map-territories path.is-selected {
+  --fill: color-mix(in srgb, var(--selected) 35%, var(--land));
+}
+
 .map-dot.is-selected {
   --fill: var(--selected);
+}
+
+.map-dot-photo {
+  fill: var(--photo);
+  stroke: #fff;
+  stroke-width: 1.5px;
+  pointer-events: none;
+}
+
+.map-dot-photo.is-selected {
+  stroke: var(--selected);
+  stroke-width: 2px;
+}
+
+.map-dot-hit {
+  fill: transparent;
 }

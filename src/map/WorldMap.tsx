@@ -1,17 +1,10 @@
 import { geoPath } from 'd3-geo'
 import { pointer, select } from 'd3-selection'
 import 'd3-transition'
-import { zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from 'd3-zoom'
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
-import {
-  boundsOnSide,
-  createMapGeometry,
-  isWrapped,
-  toShape,
-  type Bounds,
-  type Shape,
-  type World,
-} from './geo'
+import { zoom, zoomIdentity, zoomTransform, type ZoomBehavior, type ZoomTransform } from 'd3-zoom'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
+import type { CoverImage } from '../photos/useCoverImages'
+import { createMapGeometry, groupAt, toShape, type Bounds, type Shape, type World } from './geo'
 import './WorldMap.css'
 
 const MAX_ZOOM = 50
@@ -21,6 +14,8 @@ const CLICK_DISTANCE = 5
 const DOT_RADIUS_MIN = 2
 const DOT_RADIUS_MAX = 4
 const DOT_FULL_ZOOM = 8
+// Dots showing a photo are this many times larger, so the photo can be made out.
+const PHOTO_DOT_SCALE = 2
 const ZOOM_DURATION = 750
 // Share of the screen the zoomed-to territory may take.
 const ZOOM_FILL = 0.8
@@ -28,6 +23,9 @@ const ZOOM_FILL = 0.8
 // the map takes this share of the screen height, centred on Eurasia.
 const INITIAL_HEIGHT_SHARE = 0.5
 const INITIAL_CENTER: [number, number] = [60, 45]
+// A territory whose photo area is wider than the thumbnail in device pixels gets the
+// 1024 px version.
+const THUMB_PX = 256
 
 function dotRadius(k: number, fit: number): number {
   const t = Math.min(1, Math.max(0, Math.log(k / fit) / Math.log(DOT_FULL_ZOOM)))
@@ -37,7 +35,10 @@ function dotRadius(k: number, fit: number): number {
 interface Props {
   world: World
   selectedId: string | null
+  covers: Map<string, CoverImage>
   onSelect: (id: string | null) => void
+  // Territories with a photo that are currently large on screen.
+  onHiResChange: (ids: Set<string>) => void
 }
 
 interface Size {
@@ -66,7 +67,13 @@ function centeredTransform(
   return behavior.constrain()(target, extent, behavior.translateExtent())
 }
 
-export function WorldMap({ world, selectedId, onSelect }: Props) {
+// Pattern ids must be valid in url(#…); territory ids are letters, digits and hyphens.
+const photoPatternId = (id: string, group: number) => `photo-${id}-${group}`
+const dotPatternId = (id: string) => `dot-photo-${id}`
+// Passed as a CSS variable: a CSS fill rule would override a fill attribute.
+const photoStyle = (patternId: string) => ({ '--photo': `url(#${patternId})` }) as CSSProperties
+
+export function WorldMap({ world, selectedId, covers, onSelect, onHiResChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const layerRef = useRef<SVGGElement>(null)
@@ -88,6 +95,24 @@ export function WorldMap({ world, selectedId, onSelect }: Props) {
     }
   }, [world, geometry])
 
+  // Keyed by the set of ids, so swapping a thumbnail for the larger image does not count
+  // as a change of which territories have photos.
+  const photoIdsKey = [...covers.keys()].sort().join(',')
+  const withPhoto = useMemo(() => {
+    const ids = new Set(photoIdsKey.split(','))
+    return shapes.filter((s) => ids.has(s.feature.properties.id))
+  }, [shapes, photoIdsKey])
+  const selected = selectedId ? byId.get(selectedId) : undefined
+
+  // The zoom handlers live outside React; they read the latest values through refs.
+  const withPhotoRef = useRef(withPhoto)
+  const onHiResChangeRef = useRef(onHiResChange)
+  const hiResKeyRef = useRef('')
+  useEffect(() => {
+    withPhotoRef.current = withPhoto
+    onHiResChangeRef.current = onHiResChange
+  })
+
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -108,6 +133,33 @@ export function WorldMap({ world, selectedId, onSelect }: Props) {
 
     const { width, height } = geometry
     const fit = Math.min(size.w / width, size.h / height)
+
+    const applyDotRadius = (k: number) => {
+      const r = dotRadius(k, fit)
+      layer.querySelectorAll<SVGCircleElement>('.map-dot').forEach((dot) => {
+        const scale = dot.dataset.photo ? PHOTO_DOT_SCALE : 1
+        dot.setAttribute('r', String(r * scale))
+      })
+    }
+
+    // Which territories with a photo are on screen and bigger than a thumbnail.
+    const updateHiRes = (t: ZoomTransform) => {
+      const [[vx0, vy0], [vx1, vy1]] = [t.invert([0, 0]), t.invert([size.w, size.h])]
+      const minSide = THUMB_PX / (window.devicePixelRatio || 1) / t.k
+      const ids = new Set<string>()
+      for (const s of withPhotoRef.current) {
+        const large = s.groups.some(({ bounds: [[x0, y0], [x1, y1]] }) => {
+          const visible = x1 > vx0 && x0 < vx1 && y1 > vy0 && y0 < vy1
+          return visible && Math.max(x1 - x0, y1 - y0) > minSide
+        })
+        if (large) ids.add(s.feature.properties.id)
+      }
+      const key = [...ids].sort().join(',')
+      if (key === hiResKeyRef.current) return
+      hiResKeyRef.current = key
+      onHiResChangeRef.current(ids)
+    }
+
     const behavior = zoom<SVGSVGElement, unknown>()
       .extent([
         [0, 0],
@@ -121,9 +173,10 @@ export function WorldMap({ world, selectedId, onSelect }: Props) {
       .clickDistance(CLICK_DISTANCE)
       .on('zoom', ({ transform }: { transform: ZoomTransform }) => {
         layer.setAttribute('transform', transform.toString())
-        const r = String(dotRadius(transform.k, fit))
-        layer.querySelectorAll('.map-dot').forEach((dot) => dot.setAttribute('r', r))
+        applyDotRadius(transform.k)
       })
+      // Swapping images mid-gesture would stutter; decide once the map comes to rest.
+      .on('end', ({ transform }: { transform: ZoomTransform }) => updateHiRes(transform))
 
     const k = Math.max(fit, (INITIAL_HEIGHT_SHARE * size.h) / height)
     const center = k > fit ? geometry.projection(INITIAL_CENTER)! : [width / 2, height / 2]
@@ -131,10 +184,20 @@ export function WorldMap({ world, selectedId, onSelect }: Props) {
       .call(behavior)
       .call(behavior.transform, centeredTransform(behavior, size, k, center))
     zoomRef.current = behavior
+    updateHiRes(zoomTransform(svg))
     return () => {
       select(svg).on('.zoom', null)
     }
   }, [size, geometry])
+
+  // New photos: size the newly drawn dots and check whether they need the larger image.
+  useEffect(() => {
+    const svg = svgRef.current
+    const behavior = zoomRef.current
+    if (!svg || !behavior) return
+    // Re-applying the current transform runs the zoom and end handlers.
+    select(svg).call(behavior.transform, zoomTransform(svg))
+  }, [withPhoto])
 
   function zoomTo([[x0, y0], [x1, y1]]: Bounds) {
     const svg = svgRef.current
@@ -146,8 +209,8 @@ export function WorldMap({ world, selectedId, onSelect }: Props) {
   }
 
   function boundsToZoom(shape: Shape, event: MouseEvent): Bounds {
-    if (!isWrapped(shape) || !layerRef.current) return shape.bounds
-    return boundsOnSide(shape, pointer(event.nativeEvent, layerRef.current))
+    if (shape.groups.length === 1 || !layerRef.current) return shape.bounds
+    return groupAt(shape, pointer(event.nativeEvent, layerRef.current)).bounds
   }
 
   function handleClick(event: MouseEvent<SVGSVGElement>) {
@@ -161,12 +224,6 @@ export function WorldMap({ world, selectedId, onSelect }: Props) {
     zoomTo(boundsToZoom(shape, event))
   }
 
-  const pathProps = (s: Shape) => ({
-    d: s.d,
-    'data-id': s.feature.properties.id,
-    className: s.feature.properties.id === selectedId ? 'is-selected' : undefined,
-  })
-
   return (
     <div ref={containerRef} className="world-map">
       {size && (
@@ -177,26 +234,115 @@ export function WorldMap({ world, selectedId, onSelect }: Props) {
           viewBox={`0 0 ${size.w} ${size.h}`}
           onClick={handleClick}
         >
+          <defs>
+            {/* Patterns are in map coordinates, so zoom and pan need no recalculation. */}
+            {withPhoto.flatMap((s) => {
+              const id = s.feature.properties.id
+              const { href } = covers.get(id)!
+              return s.groups.map(({ bounds: [[x0, y0], [x1, y1]] }, i) => (
+                <pattern
+                  key={photoPatternId(id, i)}
+                  id={photoPatternId(id, i)}
+                  patternUnits="userSpaceOnUse"
+                  x={x0}
+                  y={y0}
+                  width={x1 - x0}
+                  height={y1 - y0}
+                >
+                  <image
+                    href={href}
+                    width={x1 - x0}
+                    height={y1 - y0}
+                    preserveAspectRatio="xMidYMid slice"
+                  />
+                </pattern>
+              ))
+            })}
+            {dots
+              .filter((s) => covers.has(s.feature.properties.id))
+              .map((s) => (
+                <pattern
+                  key={dotPatternId(s.feature.properties.id)}
+                  id={dotPatternId(s.feature.properties.id)}
+                  patternContentUnits="objectBoundingBox"
+                  width={1}
+                  height={1}
+                >
+                  <image
+                    href={covers.get(s.feature.properties.id)!.href}
+                    width={1}
+                    height={1}
+                    preserveAspectRatio="xMidYMid slice"
+                  />
+                </pattern>
+              ))}
+          </defs>
           <g ref={layerRef}>
             <path className="map-sphere" d={sphere} />
             <g className="map-territories">
               {shapes.map((s) => (
-                <path key={s.feature.properties.id} {...pathProps(s)} />
+                <path
+                  key={s.feature.properties.id}
+                  d={s.d}
+                  data-id={s.feature.properties.id}
+                  className={s === selected ? 'is-selected' : undefined}
+                />
               ))}
+            </g>
+            <g className="map-photos">
+              {withPhoto.flatMap((s) =>
+                s.groups.map((group, i) => (
+                  <path
+                    key={photoPatternId(s.feature.properties.id, i)}
+                    d={group.d}
+                    data-id={s.feature.properties.id}
+                    style={photoStyle(photoPatternId(s.feature.properties.id, i))}
+                  />
+                )),
+              )}
             </g>
             <path className="map-region-borders" d={regionBorders} />
             <path className="map-country-borders" d={countryBorders} />
+            {selected && <path className="map-selection" d={selected.outline} />}
             <g className="map-dots">
-              {dots.map((s) => (
-                <circle
-                  key={s.feature.properties.id}
-                  className={`map-dot${s.feature.properties.id === selectedId ? ' is-selected' : ''}`}
-                  data-id={s.feature.properties.id}
-                  cx={s.dot![0]}
-                  cy={s.dot![1]}
-                  r={DOT_RADIUS_MIN}
-                />
-              ))}
+              {dots.map((s) => {
+                const id = s.feature.properties.id
+                const [cx, cy] = s.dot!
+                const isSelected = id === selectedId
+                if (!covers.has(id)) {
+                  return (
+                    <circle
+                      key={id}
+                      className={`map-dot${isSelected ? ' is-selected' : ''}`}
+                      data-id={id}
+                      cx={cx}
+                      cy={cy}
+                      r={DOT_RADIUS_MIN}
+                    />
+                  )
+                }
+                return (
+                  <g key={id}>
+                    <circle
+                      className={`map-dot map-dot-photo${isSelected ? ' is-selected' : ''}`}
+                      data-photo="1"
+                      cx={cx}
+                      cy={cy}
+                      r={DOT_RADIUS_MIN * PHOTO_DOT_SCALE}
+                      style={photoStyle(dotPatternId(id))}
+                    />
+                    {/* Invisible, wider target on top so the photo dot is easy to tap. */}
+                    <circle
+                      className="map-dot map-dot-hit"
+                      data-photo="1"
+                      data-id={id}
+                      cx={cx}
+                      cy={cy}
+                      r={DOT_RADIUS_MIN * PHOTO_DOT_SCALE}
+                    />
+                  </g>
+                )
+              })}
             </g>
           </g>
         </svg>

@@ -1,0 +1,107 @@
+.territory-panel {
+  position: absolute;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(480px, calc(100% - 32px));
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 12px 12px 16px;
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: var(--panel-shadow);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.territory-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.territory-panel-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.territory-panel-name {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.territory-panel-meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.territory-panel-close {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: -4px -4px -4px 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.territory-panel-close:hover {
+  background: rgba(127, 127, 127, 0.15);
+}
+
+.territory-panel-thumbs {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.territory-panel-thumbs li {
+  flex: none;
+}
+
+.territory-panel-thumbs img {
+  display: block;
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--land);
+}
+
+.territory-panel-errors {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--error);
+}
+
+.territory-panel-add {
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--selected);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.territory-panel-add:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

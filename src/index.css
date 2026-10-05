@@ -9,6 +9,7 @@
   --region-border: rgba(255, 255, 255, 0.6);
   --dot: #a8a8a8;
   --selected: #e8833a;
+  --error: #c2410c;
   --panel: rgba(255, 255, 255, 0.92);
   --panel-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 
@@ -36,6 +37,7 @@
     --region-border: rgba(28, 28, 30, 0.6);
     --dot: #6b6b6e;
     --selected: #e8833a;
+    --error: #fb923c;
     --panel: rgba(40, 40, 42, 0.92);
     --panel-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   }
