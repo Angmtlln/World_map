@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { t, territoryName } from '../i18n'
 import { createMapGeometry, toShape, type TerritoryFeature } from '../map/geo'
-import type { CoverImage } from '../photos/useCoverImages'
-import { getImage, type Crop, type PhotoDb } from '../storage/db'
+import type { PhotoImage } from '../photos/useCoverImages'
+import { useImageUrl } from '../photos/useImageUrl'
+import type { Crop, PhotoDb } from '../storage/db'
 import { clampCrop, DEFAULT_CROP, imageRect, isDefaultCrop, panCrop, zoomCrop } from './crop'
 import './CropEditor.css'
 
@@ -14,14 +15,14 @@ const WHEEL_ZOOM_SPEED = 0.002
 interface Props {
   db: PhotoDb
   feature: TerritoryFeature
-  cover: CoverImage
+  photo: PhotoImage
   onCancel: () => void
   onSave: (crop: Crop | null) => void
 }
 
 type Point = { x: number; y: number }
 
-export function CropEditor({ db, feature, cover, onCancel, onSave }: Props) {
+export function CropEditor({ db, feature, photo, onCancel, onSave }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   // Map coordinates of each finger or mouse button currently down.
   const pointers = useRef(new Map<number, Point>())
@@ -35,29 +36,10 @@ export function CropEditor({ db, feature, cover, onCancel, onSave }: Props) {
   const box = { width: x1 - x0, height: y1 - y0 }
   const center = { x: (x0 + x1) / 2, y: (y0 + y1) / 2 }
 
-  const [crop, setCrop] = useState<Crop>(() => clampCrop(box, cover, cover.crop ?? DEFAULT_CROP))
+  const [crop, setCrop] = useState<Crop>(() => clampCrop(box, photo, photo.crop ?? DEFAULT_CROP))
 
   // The map shows a smaller version; editing deserves the sharpest one.
-  const [fullUrl, setFullUrl] = useState<string | null>(null)
-  useEffect(() => {
-    let url: string | null = null
-    let cancelled = false
-    void getImage(db, cover.photoId, 'full').then((blob) => {
-      if (!blob || cancelled) return
-      url = URL.createObjectURL(blob)
-      setFullUrl(url)
-    })
-    return () => {
-      cancelled = true
-      if (url) URL.revokeObjectURL(url)
-    }
-  }, [db, cover.photoId])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCancel()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onCancel])
+  const fullUrl = useImageUrl(db, photo.photoId, 'full')
 
   function toMap(clientX: number, clientY: number): Point {
     const svg = svgRef.current!
@@ -76,7 +58,7 @@ export function CropEditor({ db, feature, cover, onCancel, onSave }: Props) {
       e.preventDefault()
       const focus = fromCenter(toMap(e.clientX, e.clientY))
       const factor = Math.exp(-e.deltaY * WHEEL_ZOOM_SPEED)
-      setCrop((c) => zoomCrop(box, cover, c, factor, focus))
+      setCrop((c) => zoomCrop(box, photo, c, factor, focus))
     }
     svg.addEventListener('wheel', onWheel, { passive: false })
     return () => svg.removeEventListener('wheel', onWheel)
@@ -98,7 +80,7 @@ export function CropEditor({ db, feature, cover, onCancel, onSave }: Props) {
     if (after.length === 1) {
       const dx = after[0].x - before[0].x
       const dy = after[0].y - before[0].y
-      setCrop((c) => panCrop(box, cover, c, dx, dy))
+      setCrop((c) => panCrop(box, photo, c, dx, dy))
       return
     }
     // Two fingers: follow the midpoint and scale by the change in their distance.
@@ -112,8 +94,8 @@ export function CropEditor({ db, feature, cover, onCancel, onSave }: Props) {
     setCrop((c) =>
       zoomCrop(
         box,
-        cover,
-        panCrop(box, cover, c, m1.x - m0.x, m1.y - m0.y),
+        photo,
+        panCrop(box, photo, c, m1.x - m0.x, m1.y - m0.y),
         factor,
         fromCenter(m1),
       ),
@@ -124,9 +106,9 @@ export function CropEditor({ db, feature, cover, onCancel, onSave }: Props) {
     pointers.current.delete(e.pointerId)
   }
 
-  const rect = imageRect(box, cover, crop)
+  const rect = imageRect(box, photo, crop)
   const image = {
-    href: fullUrl ?? cover.href,
+    href: fullUrl ?? photo.href,
     x: x0 + rect.x,
     y: y0 + rect.y,
     width: rect.width,

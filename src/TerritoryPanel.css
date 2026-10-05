@@ -59,7 +59,29 @@
   background: rgba(127, 127, 127, 0.15);
 }
 
+.territory-panel-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.territory-panel-all {
+  flex: none;
+  height: 64px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(127, 127, 127, 0.15);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .territory-panel-thumbs {
+  flex: 1;
+  min-width: 0;
   display: flex;
   gap: 6px;
   margin: 0;
@@ -73,13 +95,26 @@
   flex: none;
 }
 
+.territory-panel-thumbs button {
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--land);
+  cursor: pointer;
+}
+
+.territory-panel-thumbs button.is-cover {
+  outline: 3px solid var(--selected);
+  outline-offset: -3px;
+}
+
 .territory-panel-thumbs img {
   display: block;
   width: 64px;
   height: 64px;
-  border-radius: 8px;
   object-fit: cover;
-  background: var(--land);
 }
 
 .territory-panel-errors {

@@ -1,13 +1,20 @@
-.persist-hint {
+.app-notices {
   position: absolute;
   top: calc(16px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   width: min(480px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.notice {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 12px 12px 12px 16px;
   border-radius: 14px;
   background: var(--panel);
@@ -15,14 +22,19 @@
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   font-size: 14px;
+  pointer-events: auto;
 }
 
-.persist-hint p {
+.notice p {
   flex: 1;
   margin: 0;
 }
 
-.persist-hint button {
+.notice-error p {
+  color: var(--error);
+}
+
+.notice button {
   flex: none;
   height: 36px;
   padding: 0 12px;

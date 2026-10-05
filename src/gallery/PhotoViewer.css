@@ -1,0 +1,126 @@
+.photo-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  color: #f5f5f4;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+.photo-viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px 8px 16px;
+}
+
+.photo-viewer-counter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+
+.photo-viewer-date {
+  color: #a8a29e;
+}
+
+.photo-viewer-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--selected);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.photo-viewer-close {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font-size: 28px;
+  cursor: pointer;
+}
+
+.photo-viewer-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.photo-viewer-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.photo-viewer-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 64px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 32px;
+  cursor: pointer;
+}
+
+.photo-viewer-prev {
+  left: 8px;
+}
+
+.photo-viewer-next {
+  right: 8px;
+}
+
+/* On touch screens swiping is the way; the arrows only cover the photo. */
+@media (hover: none) {
+  .photo-viewer-nav {
+    display: none;
+  }
+}
+
+.photo-viewer-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 12px 16px 16px;
+}
+
+.photo-viewer-actions button {
+  flex: 1;
+  max-width: 180px;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.photo-viewer-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.photo-viewer-actions .photo-viewer-delete {
+  color: #fb923c;
+}

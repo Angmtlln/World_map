@@ -1,13 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CropEditor } from './crop/CropEditor'
-import { t } from './i18n'
+import { ConfirmDialog } from './gallery/ConfirmDialog'
+import { coverFirst } from './gallery/order'
+import { PhotoGrid } from './gallery/PhotoGrid'
+import { PhotoViewer } from './gallery/PhotoViewer'
+import { t, territoryName } from './i18n'
 import { loadWorld, type World } from './map/geo'
 import { WorldMap } from './map/WorldMap'
-import { PersistHint } from './PersistHint'
+import { Notice } from './Notice'
 import { useAddPhotos } from './photos/useAddPhotos'
 import { useCoverImages } from './photos/useCoverImages'
 import { useTerritoryPhotos } from './photos/useTerritoryPhotos'
-import { openPhotoDb, updateCrop, type Crop, type ImageSize, type PhotoDb } from './storage/db'
+import {
+  deletePhoto,
+  openPhotoDb,
+  setCover,
+  updateCrop,
+  type Crop,
+  type ImageSize,
+  type PhotoDb,
+} from './storage/db'
 import { isSafariInBrowser, requestPersistence } from './storage/persist'
 import { TerritoryPanel } from './TerritoryPanel'
 
@@ -29,8 +41,13 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [photosVersion, setPhotosVersion] = useState(0)
   const [showHint, setShowHint] = useState(false)
-  const [editingCrop, setEditingCrop] = useState(false)
   const [imageSizes, setImageSizes] = useState<ReadonlyMap<string, ImageSize>>(() => new Map())
+  // Gallery layers, bottom to top: grid, viewer, crop editor, delete confirmation.
+  // The viewer follows a photo by id: making a photo the cover reorders the list.
+  const [gridOpen, setGridOpen] = useState(false)
+  const [viewerPhotoId, setViewerPhotoId] = useState<string | null>(null)
+  const [cropPhotoId, setCropPhotoId] = useState<string | null>(null)
+  const [deletePhotoId, setDeletePhotoId] = useState<string | null>(null)
   const persistenceAsked = useRef(false)
 
   useEffect(() => {
@@ -45,9 +62,11 @@ export default function App() {
     openPhotoDb().then(setDb, (error: unknown) => console.error(error))
   }, [])
 
+  const reloadPhotos = () => setPhotosVersion((v) => v + 1)
+
   // Ask for persistent storage once there is something worth keeping.
   async function afterSave() {
-    setPhotosVersion((v) => v + 1)
+    reloadPhotos()
     if (persistenceAsked.current) return
     persistenceAsked.current = true
     const persistence = await requestPersistence()
@@ -63,23 +82,67 @@ export default function App() {
     }
   }
 
-  const photos = useTerritoryPhotos(db, selectedId, photosVersion)
+  function select(id: string | null) {
+    setSelectedId(id)
+    setGridOpen(false)
+    setViewerPhotoId(null)
+    setCropPhotoId(null)
+    setDeletePhotoId(null)
+  }
+
+  const territoryPhotos = useTerritoryPhotos(db, selectedId, photosVersion)
   const covers = useCoverImages(db, photosVersion, imageSizes)
   const adding = useAddPhotos(db, () => void afterSave())
 
-  const selectedFeature = useMemo(() => {
-    if (state.status !== 'ready' || !selectedId) return null
+  const featuresById = useMemo(() => {
+    if (state.status !== 'ready') return new Map()
     const all = [...state.world.countries, ...state.world.regions]
-    return all.find((f) => f.properties.id === selectedId) ?? null
-  }, [state, selectedId])
+    return new Map(all.map((f) => [f.properties.id, f]))
+  }, [state])
+  const selectedFeature = (selectedId && featuresById.get(selectedId)) || null
   const selected = selectedFeature?.properties ?? null
-  const selectedCover = selectedId ? covers.get(selectedId) : undefined
+  const coverId = selectedId ? covers.get(selectedId)?.photoId : undefined
+  const photos = coverFirst(territoryPhotos.photos, coverId)
+  const { thumbs } = territoryPhotos
+  const viewerIndex = photos.findIndex((p) => p.id === viewerPhotoId)
+  const cropPhoto = photos.find((p) => p.id === cropPhotoId)
+
+  // Escape closes only the topmost layer.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (deletePhotoId) setDeletePhotoId(null)
+      else if (cropPhotoId) setCropPhotoId(null)
+      else if (viewerPhotoId) setViewerPhotoId(null)
+      else if (gridOpen) setGridOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [deletePhotoId, cropPhotoId, viewerPhotoId, gridOpen])
 
   async function saveCrop(photoId: string, crop: Crop | null) {
-    setEditingCrop(false)
+    setCropPhotoId(null)
     if (!db) return
     await updateCrop(db, photoId, crop)
-    setPhotosVersion((v) => v + 1)
+    reloadPhotos()
+  }
+
+  async function makeCover(photoId: string) {
+    if (!db || !selectedId) return
+    await setCover(db, selectedId, photoId)
+    reloadPhotos()
+  }
+
+  async function confirmDelete(photoId: string) {
+    setDeletePhotoId(null)
+    if (!db) return
+    // Keep the viewer open on a neighbour, or close it with the last photo.
+    if (viewerPhotoId === photoId) {
+      const i = photos.findIndex((p) => p.id === photoId)
+      setViewerPhotoId((photos[i + 1] ?? photos[i - 1])?.id ?? null)
+    }
+    await deletePhoto(db, photoId)
+    reloadPhotos()
   }
 
   return (
@@ -91,7 +154,7 @@ export default function App() {
           world={state.world}
           selectedId={selectedId}
           covers={covers}
-          onSelect={setSelectedId}
+          onSelect={select}
           onImageSizesChange={setImageSizes}
         />
       )}
@@ -99,24 +162,75 @@ export default function App() {
         <TerritoryPanel
           territory={selected}
           photos={photos}
+          thumbs={thumbs}
+          coverId={coverId}
           progress={adding.progress}
           errors={adding.errors}
           busy={adding.busy}
           onAddFiles={(files) => void adding.add(selected.id, files)}
-          onEditCrop={selectedCover ? () => setEditingCrop(true) : undefined}
-          onClose={() => setSelectedId(null)}
+          onEditCrop={coverId ? () => setCropPhotoId(coverId) : undefined}
+          onOpenPhoto={(i) => setViewerPhotoId(photos[i].id)}
+          onShowAll={() => setGridOpen(true)}
+          onClose={() => select(null)}
         />
       )}
-      {editingCrop && db && selectedFeature && selectedCover && (
+      {gridOpen && selected && (
+        <PhotoGrid
+          title={territoryName(selected)}
+          photos={photos}
+          coverId={coverId}
+          thumbs={thumbs}
+          onOpen={(i) => setViewerPhotoId(photos[i].id)}
+          onClose={() => setGridOpen(false)}
+        />
+      )}
+      {db && viewerIndex >= 0 && (
+        <PhotoViewer
+          db={db}
+          photos={photos}
+          index={viewerIndex}
+          coverId={coverId}
+          thumbs={thumbs}
+          active={!cropPhotoId && !deletePhotoId}
+          onIndexChange={(i) => setViewerPhotoId(photos[i].id)}
+          onClose={() => setViewerPhotoId(null)}
+          onMakeCover={(photo) => void makeCover(photo.id)}
+          onEditCrop={(photo) => setCropPhotoId(photo.id)}
+          onDelete={(photo) => setDeletePhotoId(photo.id)}
+        />
+      )}
+      {db && selectedFeature && cropPhoto && (
         <CropEditor
           db={db}
           feature={selectedFeature}
-          cover={selectedCover}
-          onCancel={() => setEditingCrop(false)}
-          onSave={(crop) => void saveCrop(selectedCover.photoId, crop)}
+          photo={{
+            photoId: cropPhoto.id,
+            href: thumbs.get(cropPhoto.id) ?? '',
+            crop: cropPhoto.crop,
+            width: cropPhoto.width,
+            height: cropPhoto.height,
+          }}
+          onCancel={() => setCropPhotoId(null)}
+          onSave={(crop) => void saveCrop(cropPhoto.id, crop)}
         />
       )}
-      {showHint && <PersistHint onDismiss={dismissHint} />}
+      {deletePhotoId && (
+        <ConfirmDialog
+          title={t('deleteConfirmTitle')}
+          text={t('deleteConfirmText')}
+          confirmLabel={t('deletePhoto')}
+          onConfirm={() => void confirmDelete(deletePhotoId)}
+          onCancel={() => setDeletePhotoId(null)}
+        />
+      )}
+      <div className="app-notices">
+        {showHint && (
+          <Notice
+            text={t('persistHint')}
+            actions={[{ label: t('dismiss'), onClick: dismissHint }]}
+          />
+        )}
+      </div>
     </main>
   )
 }

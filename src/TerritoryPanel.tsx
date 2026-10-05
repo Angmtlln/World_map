@@ -2,29 +2,41 @@ import { useRef, type ChangeEvent } from 'react'
 import { t, territoryName } from './i18n'
 import type { TerritoryProps } from './map/geo'
 import type { AddErrors, AddProgress } from './photos/useAddPhotos'
-import type { TerritoryPhotos } from './photos/useTerritoryPhotos'
+import type { Photo } from './storage/db'
 import './TerritoryPanel.css'
+
+// With more photos than this the strip gets an "All photos" button for the grid.
+const STRIP_LIMIT = 3
 
 interface Props {
   territory: TerritoryProps
-  photos: TerritoryPhotos
+  // Cover first.
+  photos: Photo[]
+  thumbs: Map<string, string>
+  coverId: string | undefined
   progress: AddProgress | null
   errors: AddErrors | null
   busy: boolean
   onAddFiles: (files: File[]) => void
   // Absent while the territory has no photo shown on the map.
   onEditCrop?: () => void
+  onOpenPhoto: (index: number) => void
+  onShowAll: () => void
   onClose: () => void
 }
 
 export function TerritoryPanel({
   territory,
   photos,
+  thumbs,
+  coverId,
   progress,
   errors,
   busy,
   onAddFiles,
   onEditCrop,
+  onOpenPhoto,
+  onShowAll,
   onClose,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -38,7 +50,7 @@ export function TerritoryPanel({
     onAddFiles(files)
   }
 
-  const count = photos.photos.length
+  const count = photos.length
   const status = ownProgress
     ? t('processing', { done: ownProgress.done, total: ownProgress.total })
     : count
@@ -65,13 +77,27 @@ export function TerritoryPanel({
       </header>
 
       {count > 0 && (
-        <ul className="territory-panel-thumbs">
-          {photos.photos.map((photo) => (
-            <li key={photo.id}>
-              <img src={photos.thumbs.get(photo.id)} alt="" />
-            </li>
-          ))}
-        </ul>
+        <div className="territory-panel-strip">
+          <ul className="territory-panel-thumbs">
+            {photos.map((photo, i) => (
+              <li key={photo.id}>
+                <button
+                  type="button"
+                  className={photo.id === coverId ? 'is-cover' : undefined}
+                  onClick={() => onOpenPhoto(i)}
+                  aria-label={t('photoOf', { index: i + 1, total: count })}
+                >
+                  <img src={thumbs.get(photo.id)} alt="" />
+                </button>
+              </li>
+            ))}
+          </ul>
+          {count > STRIP_LIMIT && (
+            <button type="button" className="territory-panel-all" onClick={onShowAll}>
+              {t('allPhotos')}
+            </button>
+          )}
+        </div>
       )}
 
       {ownErrors.length > 0 && (

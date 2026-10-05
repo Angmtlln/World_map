@@ -47,7 +47,26 @@ describe('photo storage', () => {
     }
   })
 
-  it('lists the photos of one territory in the order they were added', async () => {
+  it('lists photos by date taken, undated ones last in the order added', async () => {
+    const undated = await addPhoto(db, newPhoto('FRA', 1))
+    const later = await addPhoto(db, { ...newPhoto('FRA', 2), takenAt: Date.UTC(2024, 0, 1) })
+    const earlier = await addPhoto(db, { ...newPhoto('FRA', 3), takenAt: Date.UTC(2019, 0, 1) })
+    const undated2 = await addPhoto(db, newPhoto('FRA', 4))
+    expect((await getPhotos(db, 'FRA')).map((p) => p.id)).toEqual([
+      earlier.id,
+      later.id,
+      undated.id,
+      undated2.id,
+    ])
+  })
+
+  it('keeps the first added photo as the default cover, whatever its date', async () => {
+    const first = await addPhoto(db, { ...newPhoto('FRA', 1), takenAt: Date.UTC(2024, 0, 1) })
+    await addPhoto(db, { ...newPhoto('FRA', 2), takenAt: Date.UTC(2019, 0, 1) })
+    expect((await getCovers(db)).get('FRA')?.id).toBe(first.id)
+  })
+
+  it('lists undated photos of one territory in the order they were added', async () => {
     const second = await addPhoto(db, newPhoto('FRA', 20))
     const first = await addPhoto(db, newPhoto('FRA', 10))
     await addPhoto(db, newPhoto('RU-MOW', 15))

@@ -24,7 +24,7 @@ function errorMessage(file: File, error: unknown): string {
 }
 
 // Processes and saves files one by one. `onSaved` runs after each saved photo,
-// so thumbnails appear as the batch goes.
+// so thumbnails and map fills appear as the batch goes.
 export function useAddPhotos(db: PhotoDb | null, onSaved: () => void) {
   const [progress, setProgress] = useState<AddProgress | null>(null)
   const [errors, setErrors] = useState<AddErrors | null>(null)
@@ -40,8 +40,8 @@ export function useAddPhotos(db: PhotoDb | null, onSaved: () => void) {
     setProgress({ territoryId, done: 0, total: files.length })
     for (const [i, file] of files.entries()) {
       try {
-        const { width, height, images } = await processPhoto(file)
-        await addPhoto(db, { territoryId, takenAt: null, width, height, images })
+        const { width, height, images, meta } = await processPhoto(file)
+        await addPhoto(db, { territoryId, takenAt: meta.takenAt, width, height, images })
         onSaved()
       } catch (error) {
         messages.push(errorMessage(file, error))

@@ -19,3 +19,15 @@ export function t(key: MessageKey, params?: Record<string, string | number>): st
 export function territoryName(p: { name_ru: string; name_en: string }): string {
   return p.name_ru
 }
+
+const dateFormat = new Intl.DateTimeFormat('ru-RU', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  // Dates taken are camera wall-clock time stored as UTC; show them as they are.
+  timeZone: 'UTC',
+})
+
+export function formatDate(ms: number): string {
+  return dateFormat.format(ms)
+}

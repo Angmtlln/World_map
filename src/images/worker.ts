@@ -1,4 +1,5 @@
-import { browserDeps, processImage, UnreadableImageError, type ProcessedImage } from './resize'
+import { processWithMeta, type ProcessedPhoto } from './pipeline'
+import { browserDeps, UnreadableImageError } from './resize'
 
 export interface WorkerRequest {
   id: number
@@ -6,7 +7,7 @@ export interface WorkerRequest {
 }
 
 export type WorkerResponse =
-  | { id: number; ok: true; result: ProcessedImage }
+  | { id: number; ok: true; result: ProcessedPhoto }
   // `heic` is set when the file could not be decoded; null for any other failure.
   | { id: number; ok: false; heic: boolean | null; message: string }
 
@@ -18,7 +19,7 @@ const deps = browserDeps()
 scope.onmessage = async ({ data }: MessageEvent<WorkerRequest>) => {
   let response: WorkerResponse
   try {
-    response = { id: data.id, ok: true, result: await processImage(data.file, deps) }
+    response = { id: data.id, ok: true, result: await processWithMeta(data.file, deps) }
   } catch (error) {
     response = {
       id: data.id,

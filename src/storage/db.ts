@@ -95,9 +95,18 @@ export async function addPhoto(db: PhotoDb, input: NewPhoto): Promise<Photo> {
 
 const byAddedAt = (a: Photo, b: Photo) => a.addedAt - b.addedAt || a.id.localeCompare(b.id)
 
+// Gallery order: oldest shot first, like the story of a trip. Photos without a date go
+// last, in the order they were added.
+export const byTakenAt = (a: Photo, b: Photo) => {
+  if (a.takenAt !== null && b.takenAt !== null) return a.takenAt - b.takenAt || byAddedAt(a, b)
+  if (a.takenAt !== null) return -1
+  if (b.takenAt !== null) return 1
+  return byAddedAt(a, b)
+}
+
 export async function getPhotos(db: PhotoDb, territoryId: string): Promise<Photo[]> {
   const photos = await db.getAllFromIndex('photos', 'byTerritory', territoryId)
-  return photos.sort(byAddedAt)
+  return photos.sort(byTakenAt)
 }
 
 export async function getImage(

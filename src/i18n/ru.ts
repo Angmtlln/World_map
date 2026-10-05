@@ -25,4 +25,13 @@ export const ru = {
   cancel: 'Отмена',
   reset: 'Сбросить',
   done: 'Готово',
+  allPhotos: 'Все фото',
+  photoOf: '{index} из {total}',
+  isCover: 'Обложка',
+  makeCover: 'Сделать обложкой',
+  deletePhoto: 'Удалить',
+  deleteConfirmTitle: 'Удалить фото?',
+  deleteConfirmText: 'Фото удалится из этого браузера, вернуть его будет нельзя.',
+  previous: 'Предыдущее фото',
+  next: 'Следующее фото',
 }

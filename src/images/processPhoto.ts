@@ -1,4 +1,5 @@
-import { browserDeps, processImage, UnreadableImageError, type ProcessedImage } from './resize'
+import type { ProcessedPhoto } from './pipeline'
+import { UnreadableImageError } from './resize'
 import type { WorkerRequest, WorkerResponse } from './worker'
 
 // undefined: not started yet; null: unavailable, process on the main thread instead.
@@ -6,7 +7,7 @@ let worker: Worker | null | undefined
 let nextId = 0
 const pending = new Map<
   number,
-  { resolve: (r: ProcessedImage) => void; reject: (e: unknown) => void }
+  { resolve: (r: ProcessedPhoto) => void; reject: (e: unknown) => void }
 >()
 
 class WorkerFailedError extends Error {}
@@ -35,7 +36,7 @@ function getWorker(): Worker | null {
   return worker
 }
 
-function viaWorker(w: Worker, file: Blob): Promise<ProcessedImage> {
+function viaWorker(w: Worker, file: Blob): Promise<ProcessedPhoto> {
   return new Promise((resolve, reject) => {
     const id = nextId++
     pending.set(id, { resolve, reject })
@@ -43,7 +44,7 @@ function viaWorker(w: Worker, file: Blob): Promise<ProcessedImage> {
   })
 }
 
-export async function processPhoto(file: Blob): Promise<ProcessedImage> {
+export async function processPhoto(file: Blob): Promise<ProcessedPhoto> {
   const w = getWorker()
   if (w) {
     try {
@@ -56,5 +57,10 @@ export async function processPhoto(file: Blob): Promise<ProcessedImage> {
       worker = null
     }
   }
-  return processImage(file, browserDeps())
+  // Loaded only when needed: the worker normally does this, and EXIF parsing is not small.
+  const [{ processWithMeta }, { browserDeps }] = await Promise.all([
+    import('./pipeline'),
+    import('./resize'),
+  ])
+  return processWithMeta(file, browserDeps())
 }

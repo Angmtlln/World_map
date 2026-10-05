@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { getCovers, getImage, type Crop, type ImageSize, type PhotoDb } from '../storage/db'
 
-export interface CoverImage {
+// A photo ready to draw: its image URL plus what is needed to place it by its crop.
+export interface PhotoImage {
   photoId: string
   href: string
   crop: Crop | null
@@ -9,6 +10,8 @@ export interface CoverImage {
   width: number
   height: number
 }
+
+export type CoverImage = PhotoImage
 
 // The smallest stored size that stays sharp for a photo area this many device pixels across.
 // Decoded images cost width × height × 4 bytes (1024 px ≈ 4 MB, 2048 px ≈ 16 MB), so only
