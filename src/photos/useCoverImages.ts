@@ -2,27 +2,44 @@ import { useEffect, useRef, useState } from 'react'
 import { getCovers, getImage, type Crop, type ImageSize, type PhotoDb } from '../storage/db'
 
 export interface CoverImage {
+  photoId: string
   href: string
   crop: Crop | null
+  // Size of the stored photo, for placing it by its crop.
+  width: number
+  height: number
 }
 
-// Image URLs for the photo shown on each territory. Territories in `hiRes` (large on screen)
-// get the 1024 px version, the rest the 256 px thumbnail: decoded 1024 px images take ~4 MB
-// each, too much to hold for every country at once on a phone.
+// The smallest stored size that stays sharp for a photo area this many device pixels across.
+// Decoded images cost width × height × 4 bytes (1024 px ≈ 4 MB, 2048 px ≈ 16 MB), so only
+// territories that are large on screen get the bigger versions.
+export function sizeForScreen(devicePx: number): ImageSize {
+  if (devicePx > 1024) return 'full'
+  if (devicePx > 256) return 'map'
+  return 'thumb'
+}
+
+// Image URLs for the photo shown on each territory, in the size from `sizes`
+// (territories not listed get the thumbnail).
 export function useCoverImages(
   db: PhotoDb | null,
   version: number,
-  hiRes: ReadonlySet<string>,
+  sizes: ReadonlyMap<string, ImageSize>,
 ): Map<string, CoverImage> {
   const [covers, setCovers] = useState<Map<string, CoverImage>>(() => new Map())
   // Object URLs by `${photoId}:${size}`, reused across reloads and revoked once unused.
   const urls = useRef(new Map<string, string>())
-  const hiResKey = [...hiRes].sort().join(',')
+  const sizesKey = [...sizes]
+    .map(([id, size]) => `${id}=${size}`)
+    .sort()
+    .join(',')
 
   useEffect(() => {
     if (!db) return
     let cancelled = false
-    const wanted = new Set(hiResKey ? hiResKey.split(',') : [])
+    const wanted = new Map(
+      sizesKey ? sizesKey.split(',').map((entry) => entry.split('=') as [string, ImageSize]) : [],
+    )
     void (async () => {
       const cache = urls.current
       const urlFor = async (photoId: string, size: ImageSize) => {
@@ -37,11 +54,12 @@ export function useCoverImages(
       const next = new Map<string, CoverImage>()
       const used = new Set<string>()
       for (const [territoryId, photo] of await getCovers(db)) {
-        const size = wanted.has(territoryId) ? 'map' : 'thumb'
+        const size = wanted.get(territoryId) ?? 'thumb'
         const { key, url } = await urlFor(photo.id, size)
         if (!url) continue
         used.add(key)
-        next.set(territoryId, { href: url, crop: photo.crop })
+        const { id: photoId, crop, width, height } = photo
+        next.set(territoryId, { photoId, href: url, crop, width, height })
       }
       // A newer run will take over; it reuses whatever this one put in the cache.
       if (cancelled) return
@@ -56,7 +74,7 @@ export function useCoverImages(
     return () => {
       cancelled = true
     }
-  }, [db, version, hiResKey])
+  }, [db, version, sizesKey])
 
   useEffect(() => {
     const cache = urls.current

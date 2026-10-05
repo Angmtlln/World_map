@@ -125,6 +125,13 @@ export async function deletePhoto(db: PhotoDb, photoId: string): Promise<void> {
   ])
 }
 
+export async function updateCrop(db: PhotoDb, photoId: string, crop: Crop | null): Promise<void> {
+  const tx = db.transaction('photos', 'readwrite')
+  const photo = await tx.store.get(photoId)
+  if (photo) await tx.store.put({ ...photo, crop })
+  await tx.done
+}
+
 export async function setCover(db: PhotoDb, territoryId: string, photoId: string): Promise<void> {
   await db.put('territories', { id: territoryId, coverPhotoId: photoId })
 }

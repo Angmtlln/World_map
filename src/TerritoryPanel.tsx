@@ -12,6 +12,8 @@ interface Props {
   errors: AddErrors | null
   busy: boolean
   onAddFiles: (files: File[]) => void
+  // Absent while the territory has no photo shown on the map.
+  onEditCrop?: () => void
   onClose: () => void
 }
 
@@ -22,6 +24,7 @@ export function TerritoryPanel({
   errors,
   busy,
   onAddFiles,
+  onEditCrop,
   onClose,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -79,14 +82,21 @@ export function TerritoryPanel({
         </ul>
       )}
 
-      <button
-        type="button"
-        className="territory-panel-add"
-        onClick={() => inputRef.current?.click()}
-        disabled={busy}
-      >
-        {t('addPhotos')}
-      </button>
+      <div className="territory-panel-actions">
+        {onEditCrop && (
+          <button type="button" className="territory-panel-secondary" onClick={onEditCrop}>
+            {t('editCrop')}
+          </button>
+        )}
+        <button
+          type="button"
+          className="territory-panel-add"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+        >
+          {t('addPhotos')}
+        </button>
+      </div>
       <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={handleFiles} />
     </section>
   )

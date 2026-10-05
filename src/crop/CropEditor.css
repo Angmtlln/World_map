@@ -1,0 +1,84 @@
+.crop-editor {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  background: #111113;
+  color: #f5f5f4;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+.crop-editor-header {
+  padding: 16px 16px 8px;
+  text-align: center;
+}
+
+.crop-editor-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.crop-editor-hint {
+  font-size: 13px;
+  color: #a8a29e;
+}
+
+.crop-editor-canvas {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.crop-editor-canvas:active {
+  cursor: grabbing;
+}
+
+/* The part of the photo that the outline will cut away. */
+.crop-editor-outside {
+  opacity: 0.3;
+}
+
+.crop-editor-outline {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.5px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.crop-editor-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 12px 16px 16px;
+}
+
+.crop-editor-actions button {
+  flex: 1;
+  max-width: 160px;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.crop-editor-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.crop-editor-actions .crop-editor-done {
+  background: var(--selected);
+  color: #fff;
+}

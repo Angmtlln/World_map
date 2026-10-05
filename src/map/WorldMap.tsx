@@ -3,7 +3,9 @@ import { pointer, select } from 'd3-selection'
 import 'd3-transition'
 import { zoom, zoomIdentity, zoomTransform, type ZoomBehavior, type ZoomTransform } from 'd3-zoom'
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
-import type { CoverImage } from '../photos/useCoverImages'
+import { imageRect } from '../crop/crop'
+import { sizeForScreen, type CoverImage } from '../photos/useCoverImages'
+import type { ImageSize } from '../storage/db'
 import { createMapGeometry, groupAt, toShape, type Bounds, type Shape, type World } from './geo'
 import './WorldMap.css'
 
@@ -23,9 +25,6 @@ const ZOOM_FILL = 0.8
 // the map takes this share of the screen height, centred on Eurasia.
 const INITIAL_HEIGHT_SHARE = 0.5
 const INITIAL_CENTER: [number, number] = [60, 45]
-// A territory whose photo area is wider than the thumbnail in device pixels gets the
-// 1024 px version.
-const THUMB_PX = 256
 
 function dotRadius(k: number, fit: number): number {
   const t = Math.min(1, Math.max(0, Math.log(k / fit) / Math.log(DOT_FULL_ZOOM)))
@@ -37,8 +36,8 @@ interface Props {
   selectedId: string | null
   covers: Map<string, CoverImage>
   onSelect: (id: string | null) => void
-  // Territories with a photo that are currently large on screen.
-  onHiResChange: (ids: Set<string>) => void
+  // Image size needed by each territory with a photo that is larger than a thumbnail on screen.
+  onImageSizesChange: (sizes: Map<string, ImageSize>) => void
 }
 
 interface Size {
@@ -73,7 +72,7 @@ const dotPatternId = (id: string) => `dot-photo-${id}`
 // Passed as a CSS variable: a CSS fill rule would override a fill attribute.
 const photoStyle = (patternId: string) => ({ '--photo': `url(#${patternId})` }) as CSSProperties
 
-export function WorldMap({ world, selectedId, covers, onSelect, onHiResChange }: Props) {
+export function WorldMap({ world, selectedId, covers, onSelect, onImageSizesChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const layerRef = useRef<SVGGElement>(null)
@@ -106,11 +105,11 @@ export function WorldMap({ world, selectedId, covers, onSelect, onHiResChange }:
 
   // The zoom handlers live outside React; they read the latest values through refs.
   const withPhotoRef = useRef(withPhoto)
-  const onHiResChangeRef = useRef(onHiResChange)
-  const hiResKeyRef = useRef('')
+  const onImageSizesChangeRef = useRef(onImageSizesChange)
+  const imageSizesKeyRef = useRef('')
   useEffect(() => {
     withPhotoRef.current = withPhoto
-    onHiResChangeRef.current = onHiResChange
+    onImageSizesChangeRef.current = onImageSizesChange
   })
 
   useEffect(() => {
@@ -142,22 +141,29 @@ export function WorldMap({ world, selectedId, covers, onSelect, onHiResChange }:
       })
     }
 
-    // Which territories with a photo are on screen and bigger than a thumbnail.
-    const updateHiRes = (t: ZoomTransform) => {
+    // How large each territory's photo is on screen, so it gets an image sharp enough.
+    const updateImageSizes = (t: ZoomTransform) => {
       const [[vx0, vy0], [vx1, vy1]] = [t.invert([0, 0]), t.invert([size.w, size.h])]
-      const minSide = THUMB_PX / (window.devicePixelRatio || 1) / t.k
-      const ids = new Set<string>()
+      const devicePxPerUnit = t.k * (window.devicePixelRatio || 1)
+      const sizes = new Map<string, ImageSize>()
       for (const s of withPhotoRef.current) {
-        const large = s.groups.some(({ bounds: [[x0, y0], [x1, y1]] }) => {
+        let largest = 0
+        for (const {
+          bounds: [[x0, y0], [x1, y1]],
+        } of s.groups) {
           const visible = x1 > vx0 && x0 < vx1 && y1 > vy0 && y0 < vy1
-          return visible && Math.max(x1 - x0, y1 - y0) > minSide
-        })
-        if (large) ids.add(s.feature.properties.id)
+          if (visible) largest = Math.max(largest, x1 - x0, y1 - y0)
+        }
+        const imageSize = sizeForScreen(largest * devicePxPerUnit)
+        if (imageSize !== 'thumb') sizes.set(s.feature.properties.id, imageSize)
       }
-      const key = [...ids].sort().join(',')
-      if (key === hiResKeyRef.current) return
-      hiResKeyRef.current = key
-      onHiResChangeRef.current(ids)
+      const key = [...sizes]
+        .map(([id, size]) => `${id}=${size}`)
+        .sort()
+        .join(',')
+      if (key === imageSizesKeyRef.current) return
+      imageSizesKeyRef.current = key
+      onImageSizesChangeRef.current(sizes)
     }
 
     const behavior = zoom<SVGSVGElement, unknown>()
@@ -176,7 +182,7 @@ export function WorldMap({ world, selectedId, covers, onSelect, onHiResChange }:
         applyDotRadius(transform.k)
       })
       // Swapping images mid-gesture would stutter; decide once the map comes to rest.
-      .on('end', ({ transform }: { transform: ZoomTransform }) => updateHiRes(transform))
+      .on('end', ({ transform }: { transform: ZoomTransform }) => updateImageSizes(transform))
 
     const k = Math.max(fit, (INITIAL_HEIGHT_SHARE * size.h) / height)
     const center = k > fit ? geometry.projection(INITIAL_CENTER)! : [width / 2, height / 2]
@@ -184,7 +190,7 @@ export function WorldMap({ world, selectedId, covers, onSelect, onHiResChange }:
       .call(behavior)
       .call(behavior.transform, centeredTransform(behavior, size, k, center))
     zoomRef.current = behavior
-    updateHiRes(zoomTransform(svg))
+    updateImageSizes(zoomTransform(svg))
     return () => {
       select(svg).on('.zoom', null)
     }
@@ -238,25 +244,25 @@ export function WorldMap({ world, selectedId, covers, onSelect, onHiResChange }:
             {/* Patterns are in map coordinates, so zoom and pan need no recalculation. */}
             {withPhoto.flatMap((s) => {
               const id = s.feature.properties.id
-              const { href } = covers.get(id)!
-              return s.groups.map(({ bounds: [[x0, y0], [x1, y1]] }, i) => (
-                <pattern
-                  key={photoPatternId(id, i)}
-                  id={photoPatternId(id, i)}
-                  patternUnits="userSpaceOnUse"
-                  x={x0}
-                  y={y0}
-                  width={x1 - x0}
-                  height={y1 - y0}
-                >
-                  <image
-                    href={href}
-                    width={x1 - x0}
-                    height={y1 - y0}
-                    preserveAspectRatio="xMidYMid slice"
-                  />
-                </pattern>
-              ))
+              const cover = covers.get(id)!
+              return s.groups.map(({ bounds: [[x0, y0], [x1, y1]] }, i) => {
+                const box = { width: x1 - x0, height: y1 - y0 }
+                // The crop belongs to the main group; far-away parts show the photo centred.
+                const rect = imageRect(box, cover, i === 0 ? cover.crop : null)
+                return (
+                  <pattern
+                    key={photoPatternId(id, i)}
+                    id={photoPatternId(id, i)}
+                    patternUnits="userSpaceOnUse"
+                    x={x0}
+                    y={y0}
+                    width={box.width}
+                    height={box.height}
+                  >
+                    <image href={cover.href} {...rect} preserveAspectRatio="none" />
+                  </pattern>
+                )
+              })
             })}
             {dots
               .filter((s) => covers.has(s.feature.properties.id))

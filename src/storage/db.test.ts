@@ -8,6 +8,7 @@ import {
   getPhotos,
   openPhotoDb,
   setCover,
+  updateCrop,
   type NewPhoto,
   type PhotoDb,
 } from './db'
@@ -58,6 +59,14 @@ describe('photo storage', () => {
     await deletePhoto(db, photo.id)
     expect(await getPhotos(db, 'FRA')).toEqual([])
     expect(await getImage(db, photo.id, 'full')).toBeUndefined()
+  })
+
+  it('saves and clears the crop of a photo', async () => {
+    const photo = await addPhoto(db, newPhoto('FRA', 1))
+    await updateCrop(db, photo.id, { x: 0.1, y: -0.2, scale: 1.5 })
+    expect((await getPhotos(db, 'FRA'))[0].crop).toEqual({ x: 0.1, y: -0.2, scale: 1.5 })
+    await updateCrop(db, photo.id, null)
+    expect((await getPhotos(db, 'FRA'))[0].crop).toBeNull()
   })
 
   it('keeps data after the database is reopened', async () => {
