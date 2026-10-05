@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CropEditor } from './crop/CropEditor'
+import { SyncButton } from './drive/SyncButton'
+import { useDrive } from './drive/useDrive'
 import { ConfirmDialog } from './gallery/ConfirmDialog'
 import { coverFirst } from './gallery/order'
 import { PhotoGrid } from './gallery/PhotoGrid'
@@ -90,6 +92,7 @@ export default function App() {
     setDeletePhotoId(null)
   }
 
+  const drive = useDrive()
   const territoryPhotos = useTerritoryPhotos(db, selectedId, photosVersion)
   const covers = useCoverImages(db, photosVersion, imageSizes)
   const adding = useAddPhotos(db, () => void afterSave())
@@ -223,6 +226,11 @@ export default function App() {
           onCancel={() => setDeletePhotoId(null)}
         />
       )}
+      <SyncButton
+        status={drive.status}
+        onConnect={() => void drive.connect()}
+        onSignOut={() => void drive.signOut()}
+      />
       <div className="app-notices">
         {showHint && (
           <Notice

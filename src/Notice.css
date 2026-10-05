@@ -10,6 +10,13 @@
   pointer-events: none;
 }
 
+/* Below the sync button in the top-right corner where they would overlap. */
+@media (max-width: 600px) {
+  .app-notices {
+    top: calc(72px + env(safe-area-inset-top));
+  }
+}
+
 .notice {
   box-sizing: border-box;
   display: flex;
